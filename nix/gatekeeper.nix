@@ -1,4 +1,18 @@
 {
+  perSystem =
+    {
+      pkgs,
+      ...
+    }:
+    {
+      kubenix.crds = [
+        (pkgs.fetchurl {
+          url = "https://raw.githubusercontent.com/open-policy-agent/gatekeeper/v3.22.2/deploy/gatekeeper.yaml";
+          hash = "sha256-cmg/V/36TDTUqJLl5vRXpaflM+ugKT14HVPQjdZhSlo=";
+        })
+      ];
+    };
+
   flake.modules.kubenix.gatekeeper = {
     kubernetes.resources.namespaces.gatekeeper = {
       metadata.annotations.apply-order = "5";
