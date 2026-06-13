@@ -1,0 +1,3 @@
+[default.extend-words]
+# nix-storage-plugin Additional Layer Store service name
+als = "als"

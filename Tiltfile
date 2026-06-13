@@ -31,6 +31,7 @@ local_resource(
 			--mount type=bind,src="$(pwd)/.direnv/node-state/cni-bin",dst=/persist/cni-bin,rw \
 			--mount type=bind,src="$(pwd)/.direnv/node-state/local-path-provisioner",dst=/persist/local-path-provisioner,rw \
 			--mount type=bind,src="$(pwd)/.direnv/kubeconfig.yaml",dst=/persist/kubeconfig.yaml,rw \
+			--mount type=bind,src=/nix/store,dst=/nix/store,ro \
 			nix:0$(nix build --print-out-paths --log-format raw ".#image-singleNode")
 	""",
 	readiness_probe = probe(

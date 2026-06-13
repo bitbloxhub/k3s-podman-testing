@@ -42,7 +42,6 @@
       url = "github:bitbloxhub/nix-storage-plugin";
       inputs = {
         crate2nix.follows = "";
-        fenix.follows = "";
         flake-file.follows = "flake-file";
         flake-parts.follows = "flake-parts";
         flint.follows = "flint";

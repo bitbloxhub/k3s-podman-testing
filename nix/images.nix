@@ -10,7 +10,6 @@
     nix-storage-plugin = {
       url = "github:bitbloxhub/nix-storage-plugin";
       inputs.crate2nix.follows = "";
-      inputs.fenix.follows = "";
       inputs.flake-file.follows = "flake-file";
       inputs.flake-parts.follows = "flake-parts";
       inputs.flint.follows = "flint";
@@ -70,12 +69,13 @@
               pkgs.iptables
               pkgs.ipset
               pkgs.nftables
+              pkgs.fuse3
             ];
             ignoreCollisions = true;
           })
           (pkgs.runCommandLocal "k3s-single-node-minimal-root" { } ''
             mkdir -p "$out"/{etc,run,var,tmp,root,bin,opt/cni/bin,persist}
-            mkdir -p "$out/etc"/{finit.d,tmpfiles.d,crio,cni/net.d,containers,rancher/k3s}
+            mkdir -p "$out/etc"/{finit.d,tmpfiles.d,crio,cni/net.d,containers/registries.conf.d,rancher/k3s}
             mkdir -p "$out/var"/{lib,log,empty}
             mkdir -p "$out/persist"/{k3s-state,kubelet-state,crio-state,cni-net.d,cni-state,calico-state,cni-bin,local-path-provisioner}
             : > "$out/persist/kubeconfig.yaml"
@@ -114,14 +114,38 @@
             # keep include glob non-empty
             EOF
 
+            cat > "$out/bin/start-nix-storage-plugin-als" <<'EOF'
+            #!/bin/sh
+            exec ${inputs'.nix-storage-plugin.packages.default}/bin/nix-storage-plugin mount-store --mount-path /run/nix-storage-plugin/layer-store
+            EOF
+            chmod +x "$out/bin/start-nix-storage-plugin-als"
+
+            cat > "$out/etc/finit.d/nix-storage-plugin-als.conf" <<'EOF'
+            service [2345] name:nix-storage-plugin-als log:/var/log/nix-storage-plugin-als.log respawn /bin/start-nix-storage-plugin-als -- nix-storage-plugin ALS
+            EOF
+
+            cat > "$out/bin/start-nix-storage-plugin-registry" <<'EOF'
+            #!/bin/sh
+            exec ${inputs'.nix-storage-plugin.packages.default}/bin/nix-storage-plugin serve-image --bind 127.0.0.1:45123
+            EOF
+            chmod +x "$out/bin/start-nix-storage-plugin-registry"
+
+            cat > "$out/etc/finit.d/nix-storage-plugin-registry.conf" <<'EOF'
+            service [2345] name:nix-storage-plugin-registry log:/var/log/nix-storage-plugin-registry.log respawn /bin/start-nix-storage-plugin-registry -- nix-storage-plugin registry
+            EOF
+
             cat > "$out/bin/start-crio" <<'EOF'
             #!/bin/sh
+            for i in $(seq 1 60); do
+              mountpoint -q /run/nix-storage-plugin/layer-store && break
+              sleep 1
+            done
             _CRIO_ROOTLESS=1 exec ${inputs'.nix-storage-plugin.packages.cri-o}/bin/crio
             EOF
             chmod +x "$out/bin/start-crio"
 
             cat > "$out/etc/finit.d/crio.conf" <<'EOF'
-            # Start CRI-O from nix-storage-plugin overlay packages.
+            # Start CRI-O from nix-storage-plugin overlay packages after ALS mount is up.
             service [2345] name:crio log:/var/log/crio.log respawn /bin/start-crio -- CRI-O
             EOF
 
@@ -186,10 +210,54 @@
             graphroot = "/var/lib/containers/storage"
             runroot = "/run/containers/runroot"
 
+            [storage.options]
+            additionallayerstores = ["/run/nix-storage-plugin/layer-store:ref"]
+
             [storage.options.overlay]
             mount_program = "${pkgs.fuse-overlayfs}/bin/fuse-overlayfs"
             mountopt = "nodev"
             ignore_chown_errors = "true"
+            EOF
+
+            cat > "$out/etc/fuse.conf" <<'EOF'
+            user_allow_other
+            EOF
+
+            cat > "$out/etc/containers/registries.conf.d/90-nix-storage-plugin.conf" <<'EOF'
+            [[registry]]
+            prefix = "nix:0"
+            location = "127.0.0.1:45123"
+            insecure = true
+
+            [[registry]]
+            prefix = "flake-github:0"
+            location = "127.0.0.1:45123/flake-github"
+            insecure = true
+
+            [[registry]]
+            prefix = "flake-tarball-https:0"
+            location = "127.0.0.1:45123/flake-tarball-https"
+            insecure = true
+
+            [[registry]]
+            prefix = "flake-tarball-http:0"
+            location = "127.0.0.1:45123/flake-tarball-http"
+            insecure = true
+
+            [[registry]]
+            prefix = "flake-git-https:0"
+            location = "127.0.0.1:45123/flake-git-https"
+            insecure = true
+
+            [[registry]]
+            prefix = "flake-git-http:0"
+            location = "127.0.0.1:45123/flake-git-http"
+            insecure = true
+
+            [[registry]]
+            prefix = "flake-git-ssh:0"
+            location = "127.0.0.1:45123/flake-git-ssh"
+            insecure = true
             EOF
 
             cat > "$out/etc/containers/policy.json" <<'EOF'
@@ -274,7 +342,7 @@
               mount -t tmpfs -o rw,nosuid,nodev,mode=755 tmpfs "/$d"
             done
             mkdir -p /run/finit/cond/pid /run/finit/cond/sys /run/finit/cond/usr /run/finit/system
-            mkdir -p /run/crio
+            mkdir -p /run/nix-storage-plugin /run/crio
             mkdir -p /var/lib /var/log /var/empty /var/lib/cni /var/lib/crio
             for d in $BASE_RW_DIRS; do
               cp -aL "/run/base-ro/$d/." "/$d/"
@@ -360,6 +428,8 @@
 
             # Podman/container tools expect this; avoid Podman trying to create it.
             ln -s /proc/mounts "$out/etc/mtab"
+
+            ln -s ${inputs'.nix-storage-plugin.packages.default}/bin/nix-storage-plugin "$out/bin/nix-storage-plugin"
 
             # CRI-O needs pinns
             ln -s ${inputs'.nix-storage-plugin.packages.cri-o}/bin/pinns "$out/bin/pinns"
