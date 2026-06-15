@@ -1,12 +1,12 @@
 {
   lib,
-  self,
   ...
 }:
 {
   perSystem =
     {
       pkgs,
+      self',
       ...
     }:
     {
@@ -26,6 +26,21 @@
           hash = "sha256-i074UaixKW3JdI2H7CqRJity5bXfrLRpYS0zS5PcGCg=";
         })
       ];
+
+      packages.flux = pkgs.stdenv.mkDerivation {
+        name = "flux";
+        dontUnpack = true;
+        installPhase = ''
+          ${builtins.concatStringsSep "\n" (
+            builtins.map (name: ''
+              mkdir -p $out/kubernetes/${name}
+              ${pkgs.yq-go}/bin/yq eval-all '[.] | sort_by((.metadata.annotations.apply-order | to_number) // 1000) | .[] | splitDoc' ${
+                self'.packages.kubenix-evals.evaluated.${name}.config.kubernetes.resultYAML
+              } > $out/kubernetes/${name}/${name}.yaml
+            '') (builtins.attrNames self'.packages.kubenix-evals.evaluated)
+          )}
+        '';
+      };
     };
 
   flake.modules.kubenix.default = {
@@ -124,10 +139,10 @@
           value = {
             metadata.namespace = "flux-system";
             spec = {
-              inherit (self'.packages.flux.${name}.config.kustomization) dependsOn;
-              inherit (self'.packages.flux.${name}.config.kustomization) healthChecks;
+              inherit (self'.packages.kubenix-evals.evaluated.${name}.config.kustomization) dependsOn;
+              inherit (self'.packages.kubenix-evals.evaluated.${name}.config.kustomization) healthChecks;
               interval = "1m0s";
-              path = "./${name}";
+              path = "./kubernetes/${name}";
               prune = true;
               sourceRef = {
                 kind = "OCIRepository";
@@ -135,7 +150,7 @@
               };
             };
           };
-        }) (builtins.filter (name: name != "default") (builtins.attrNames self.modules.kubenix))
+        }) (builtins.attrNames self'.packages.kubenix-evals.evaluated)
       );
     };
 
@@ -201,7 +216,7 @@
           kind = "OCIRepository";
           url = "oci://registry.registry.svc.cluster.local:5000/k3s-podman-testing-flux";
           ref = "latest";
-          path = "./flux-system";
+          path = "./kubernetes/flux-system";
         };
         kustomize.patches = [
           {
