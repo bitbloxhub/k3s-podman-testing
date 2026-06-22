@@ -249,6 +249,7 @@
         "nix-snapshotter": "nix-snapshotter",
         "nix-storage-plugin": "nix-storage-plugin",
         "nixpkgs": "nixpkgs",
+        "tofunix": "tofunix",
         "treefmt-nix": "treefmt-nix"
       }
     },
@@ -281,6 +282,23 @@
       "original": {
         "id": "systems",
         "type": "indirect"
+      }
+    },
+    "tofunix": {
+      "locked": {
+        "dir": "lib",
+        "lastModified": 1781504075,
+        "narHash": "sha256-Xc+GYomzfFtTY21Z9v7YqUIS7tiTeWSUnxofetCmhf8=",
+        "owner": "TECHNOFAB",
+        "repo": "tofunix",
+        "rev": "a43a66cfbed02da3cf66f632635a27811126c0df",
+        "type": "gitlab"
+      },
+      "original": {
+        "dir": "lib",
+        "owner": "TECHNOFAB",
+        "repo": "tofunix",
+        "type": "gitlab"
       }
     },
     "treefmt-nix": {

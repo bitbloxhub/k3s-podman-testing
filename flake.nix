@@ -53,6 +53,7 @@
       };
     };
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    tofunix.url = "gitlab:TECHNOFAB/tofunix?dir=lib";
     treefmt-nix = {
       url = "github:numtide/treefmt-nix";
       inputs.nixpkgs.follows = "nixpkgs";

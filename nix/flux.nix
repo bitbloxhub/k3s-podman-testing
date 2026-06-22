@@ -39,6 +39,15 @@
               } > $out/kubernetes/${name}/${name}.yaml
             '') (builtins.attrNames self'.packages.kubenix-evals.evaluated)
           )}
+
+          ${builtins.concatStringsSep "\n" (
+            builtins.map (name: ''
+              mkdir -p $out/tofu-modules/${name}
+              cp ${
+                self'.packages.tofunix-evals.evaluated.${name}.config.finalPackage
+              } $out/tofu-modules/${name}/main.tf.json
+            '') (builtins.attrNames self'.packages.tofunix-evals.evaluated)
+          )}
         '';
       };
     };
