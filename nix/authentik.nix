@@ -517,6 +517,22 @@ in
         };
       };
 
+      kubernetes.resources.clusterRoleBindings.bitbloxhub-cluster-admin = {
+        roleRef = {
+          apiGroup = "rbac.authorization.k8s.io";
+          kind = "ClusterRole";
+          name = "cluster-admin";
+        };
+
+        subjects = [
+          {
+            kind = "User";
+            apiGroup = "rbac.authorization.k8s.io";
+            name = "bitbloxhub@local.invalid";
+          }
+        ];
+      };
+
       kubernetes.resources.resourcegraphdefinitions.authentik-user = {
         metadata.namespace = "authentik";
         spec = {

@@ -49,6 +49,7 @@
           runner.serviceAccount.allowedNamespaces = [
             "authentik"
             "grafana"
+            "radar"
           ];
         };
       };
