@@ -321,6 +321,81 @@ in
       };
     };
 
+  flake.modules.tofunix.authentik =
+    {
+      ref,
+      ...
+    }:
+    let
+      defaultProviderInvalidationFlow = ref.data.authentik_flow.default_provider_invalidation_flow;
+      defaultAuthenticationLoginStage = ref.data.authentik_stage.default_authentication_login;
+      logoutHomepageStage = ref.authentik_stage_redirect.logout_homepage;
+    in
+    {
+      variable = {
+        authentik_url = {
+          type = "string";
+        };
+        authentik_token = {
+          type = "string";
+          sensitive = true;
+        };
+      };
+
+      provider.authentik.default = {
+        url = ref.var.authentik_url;
+        token = ref.var.authentik_token;
+      };
+
+      data.authentik_flow.default_provider_invalidation_flow = {
+        slug = "default-provider-invalidation-flow";
+      };
+
+      data.authentik_stage.default_authentication_login = {
+        name = "default-authentication-login";
+      };
+
+      data.authentik_brand.default = {
+        domain = "authentik-default";
+      };
+
+      resource.authentik_brand.default = {
+        domain = "authentik-default";
+        default = true;
+
+        branding_title = "k3s-podman-testing";
+        branding_default_flow_background = "https://images.robinpro.gallery/v7/_origin_/uploads/ad86b0a1b9529ba3081458224a5da460.webp?ci_seal=a61d709bc2&org_if_sml=1";
+      };
+
+      resource.authentik_stage_redirect.logout_homepage = {
+        name = "logout-homepage";
+        mode = "static";
+        target_static = "http://homepage.k3s-podman-testing.localhost:4962";
+      };
+
+      resource.authentik_flow_stage_binding.logout_homepage = {
+        target = defaultProviderInvalidationFlow.id;
+        stage = logoutHomepageStage.id;
+        order = 100;
+      };
+
+      resource.authentik_stage_user_login.default_authentication_login = {
+        name = "default-authentication-login";
+        session_duration = "weeks=4";
+      };
+
+      final.import = [
+        {
+          to = "authentik_stage_user_login.default_authentication_login";
+          inherit (defaultAuthenticationLoginStage) id;
+        }
+        {
+          to = "authentik_brand.default";
+          id = ref.data.authentik_brand.default.id;
+        }
+      ];
+    };
+
   flake.modules.kubenix.authentik =
     {
       pkgs,
@@ -444,6 +519,26 @@ in
               printf '%s' ${lib.escapeShellArg authentikBootstrapToken} | base64 -w0 > "$out"
             ''
           );
+        };
+      };
+
+      kubernetes.resources.terraforms.authentik = {
+        metadata.namespace = "authentik";
+        spec = {
+          interval = "1m";
+          approvePlan = "auto";
+          path = "./tofu-modules/authentik";
+          sourceRef = {
+            kind = "OCIRepository";
+            name = "flux-system";
+            namespace = "flux-system";
+          };
+          varsFrom = [
+            {
+              kind = "Secret";
+              name = "authentik-bootstrap-provider-vars";
+            }
+          ];
         };
       };
 
