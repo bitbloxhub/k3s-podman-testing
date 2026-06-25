@@ -27,7 +27,61 @@
       inputs',
       ...
     }:
+    let
+      cri-o-unwrapped = inputs'.nix-storage-plugin.packages.cri-o-unwrapped.overrideAttrs (old: {
+        nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [
+          pkgs.python3
+        ];
+
+        postPatch = (old.postPatch or "") + ''
+          python3 - <<'PY'
+          from pathlib import Path
+          import sys
+
+          path = Path("server/container_create.go")
+          src = path.read_text()
+
+          needle = """\tif os.Getenv(rootlessEnvName) != "" {
+          \t\tmakeOCIConfigurationRootless(specgen)
+          \t}
+          """
+
+          replacement = """\tif os.Getenv(rootlessEnvName) != "" {
+          \t\tcgroupsPath := ""
+          \t\tif specgen.Config.Linux != nil {
+          \t\t\tcgroupsPath = specgen.Config.Linux.CgroupsPath
+          \t\t}
+
+          \t\tmakeOCIConfigurationRootless(specgen)
+
+          \t\tif cgroupsPath != "" {
+          \t\t\tspecgen.SetLinuxCgroupsPath(cgroupsPath)
+          \t\t}
+          \t}
+          """
+
+          count = src.count(needle)
+          if count != 1:
+            print(f"expected exactly one rootless config block, found {count}", file=sys.stderr)
+            sys.exit(1)
+
+          src = src.replace(needle, replacement, 1)
+          path.write_text(src)
+          PY
+
+          gofmt -w server/container_create.go
+
+          echo "== rootless cgroupsPath preserve patch =="
+          grep -n -A18 -B4 'cgroupsPath :=' server/container_create.go
+        '';
+      });
+
+      cri-o = inputs'.nix-storage-plugin.packages.cri-o.override {
+        cri-o-unwrapped = cri-o-unwrapped;
+      };
+    in
     {
+      packages.cri-o = cri-o;
       packages.image-singleNode = inputs'.nix-snapshotter.packages.nix-snapshotter.buildImage {
         name = "k3s-single-node-minimal";
         resolvedByNix = true;
@@ -140,7 +194,7 @@
               mountpoint -q /run/nix-storage-plugin/layer-store && break
               sleep 1
             done
-            _CRIO_ROOTLESS=1 exec ${inputs'.nix-storage-plugin.packages.cri-o}/bin/crio
+            _CRIO_ROOTLESS=1 exec ${cri-o}/bin/crio
             EOF
             chmod +x "$out/bin/start-crio"
 
@@ -186,15 +240,18 @@
 
             [crio.runtime]
             cgroup_manager = "cgroupfs"
+            conmon_cgroup = "pod"
             infra_ctr_oom_score_adj = 1000
+            drop_infra_ctr = false
             default_runtime = "crun"
+            log_level = "debug"
 
             [crio.runtime.runtimes.crun]
             runtime_path = "${pkgs.crun}/bin/crun"
             runtime_type = "pod"
             runtime_root = "/run/crun"
             monitor_path = "${pkgs.conmon-rs}/bin/conmonrs"
-            monitor_cgroup = ""
+            monitor_cgroup = "pod"
             # Causes calico to get messaed up when USB devices change, potentially on suspend?
             privileged_without_host_devices = true
 
@@ -202,6 +259,7 @@
             root = "/var/lib/containers/storage"
             runroot = "/run/containers/runroot"
             log_dir = "/run/crio"
+            log_level = "debug"
             EOF
 
             cat > "$out/etc/containers/storage.conf" <<'EOF'
