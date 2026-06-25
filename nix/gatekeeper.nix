@@ -40,6 +40,7 @@
         };
         values = {
           replicas = 1;
+          pdb.controllerManager.minAvailable = 0;
 
           image = {
             repository = "docker.io/openpolicyagent/gatekeeper";

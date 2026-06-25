@@ -424,6 +424,7 @@ in
 
         spec = {
           instances = 1;
+          enablePDB = false;
 
           bootstrap.initdb = {
             database = "authentik";
@@ -434,6 +435,11 @@ in
             size = "10Gi";
             storageClass = "local-path";
           };
+
+          managed.services.disabledDefaultServices = [
+            "ro"
+            "r"
+          ];
         };
       };
 
