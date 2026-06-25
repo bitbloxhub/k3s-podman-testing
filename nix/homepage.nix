@@ -55,6 +55,17 @@
               }
             ];
           }
+          {
+            Authentication = [
+              {
+                Authentik = {
+                  href = "http://authentik.k3s-podman-testing.localhost:4962";
+                  description = "Identity Provider";
+                  icon = "https://goauthentik.io/img/press-kit/icon-color.svg";
+                };
+              }
+            ];
+          }
         ];
         "bookmarks.yaml" = builtins.toJSON [ ];
         "widgets.yaml" = builtins.toJSON [ ];
