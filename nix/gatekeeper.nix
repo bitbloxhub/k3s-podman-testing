@@ -1,4 +1,81 @@
 {
+  flake.lib.gatekeeperConstraintSpecToCrd =
+    {
+      pkgs,
+      constraintSpec,
+      group ? "constraints.gatekeeper.sh",
+      version ? "v1beta1",
+    }:
+    let
+      inherit (constraintSpec) names;
+      parametersSchema = constraintSpec.validation.openAPIV3Schema;
+    in
+    pkgs.writeTextFile {
+      name = "${names.plural}.${group}.crd.yaml";
+      text = builtins.toJSON {
+        apiVersion = "apiextensions.k8s.io/v1";
+        kind = "CustomResourceDefinition";
+
+        metadata.name = "${names.plural}.${group}";
+
+        spec = {
+          inherit group names;
+          scope = "Cluster";
+
+          versions = [
+            {
+              name = version;
+              served = true;
+              storage = true;
+
+              schema.openAPIV3Schema = {
+                type = "object";
+
+                properties = {
+                  spec = {
+                    type = "object";
+
+                    properties = {
+                      enforcementAction = {
+                        type = "string";
+                        enum = [
+                          "deny"
+                          "dryrun"
+                          "warn"
+                        ];
+                      };
+
+                      match = {
+                        type = "object";
+                        x-kubernetes-preserve-unknown-fields = true;
+                      };
+
+                      parameters = parametersSchema;
+                    };
+                  };
+
+                  status = {
+                    type = "object";
+                    x-kubernetes-preserve-unknown-fields = true;
+                  };
+                };
+              };
+            }
+          ];
+        };
+      };
+    };
+
+  flake.lib.gatekeeperTemplateCrdSpec =
+    crdSpec:
+    crdSpec
+    // {
+      names = builtins.intersectAttrs {
+        kind = null;
+        shortNames = null;
+      } crdSpec.names;
+    };
+
   perSystem =
     {
       pkgs,
