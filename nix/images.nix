@@ -77,7 +77,7 @@
       });
 
       cri-o = inputs'.nix-storage-plugin.packages.cri-o.override {
-        cri-o-unwrapped = cri-o-unwrapped;
+        inherit cri-o-unwrapped;
       };
     in
     {
