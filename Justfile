@@ -42,7 +42,7 @@ push-flux:
 	#!/usr/bin/env nu
 	let out = (nix build --no-link --print-out-paths --log-format raw .#flux | str trim)
 	let tmp = (mktemp -d | str trim)
-	let port_forward = (job spawn --tag registry-port-forward {
+	let port_forward = (job spawn --description registry-port-forward {
 		kubectl port-forward -n registry svc/registry 5000:5000
 	})
 	sleep 2sec
